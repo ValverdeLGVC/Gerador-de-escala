@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escala de Faxina Militar</title>
+
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            background-color: #f3e5f5;
+            /* Roxo claro suave */
+            padding: 30px;
+            margin: 0;
+        }
+
+        h1 {
+            color: #5e35b1;
+            /* Cor de texto roxa */
+            font-size: 36px;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+        }
+
+        form,
+        #resultado {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+            margin: 30px auto;
+            width: 70%;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        form:hover,
+        #resultado:hover {
+            transform: translateY(-5px);
+        }
+
+        input[type="date"],
+        input[type="number"],
+        select,
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 8px;
+            border: 1px solid #e1bee7;
+            font-size: 16px;
+            box-sizing: border-box;
+            background-color: #f3e5f5;
+            /* Roxo claro */
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="date"]:focus,
+        input[type="number"]:focus,
+        select:focus,
+        input[type="text"]:focus {
+            border-color: #7e57c2;
+            /* Cor roxa mais forte */
+            outline: none;
+        }
+
+        button {
+            background: #7e57c2;
+            /* Cor roxa */
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-size: 16px;
+            transition: background-color 0.3s ease, transform 0.2s ease-in-out;
+        }
+
+        button:hover {
+            background-color: #5e35b1;
+            transform: scale(1.05);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            animation: fadeIn 1s ease;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid #e1bee7;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: center;
+            background-color: #f3e5f5;
+            font-size: 16px;
+        }
+
+        th {
+            background-color: #7e57c2;
+            /* Roxo mais forte */
+            color: white;
+        }
+
+        @keyframes fadeIn {
+            0% {
+                opacity: 0;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Escala de Faxina Militar</h1>
+
+    <form id="config-form">
+        <label for="data-inicial">Data Inicial:</label>
+        <input type="date" id="data-inicial" required>
+
+        <label for="num-soldados">Quantidade de Soldados:</label>
+        <input type="number" id="num-soldados" min="1" required>
+
+        <label for="soldados-por-dia">Soldados por Dia:</label>
+        <select id="soldados-por-dia">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+        </select>
+
+        <label for="tipo-escala">Tipo de Escala:</label>
+        <select id="tipo-escala">
+            <option value="semanal">Semanal</option>
+            <option value="mensal">Mensal</option>
+        </select>
+
+        <button type="submit">Configurar</button>
+    </form>
+
+    <div id="soldados-input"></div>
+
+    <button id="gerar-escala" style="display: none;">Gerar Escala</button>
+
+    <div id="resultado"></div>
+
+    <button id="download-pdf" style="display: none;" onclick="imprimirTabela()">Baixar PDF</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.0/purify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        document.getElementById('config-form').addEventListener('submit', function (event) {
+            event.preventDefault();
+            const numSoldados = document.getElementById('num-soldados').value;
+            const soldadosInputDiv = document.getElementById('soldados-input');
+            soldadosInputDiv.innerHTML = '';
+            for (let i = 0; i < numSoldados; i++) {
+                soldadosInputDiv.innerHTML += `<input type="text" placeholder="Nome do Soldado ${i + 1}" class="soldado-nome"> <input type="text" placeholder="Dias indisponíveis (ex: 10,15,20)" class="soldado-indisponivel"><br>`;
+            }
+            document.getElementById('gerar-escala').style.display = 'block';
+        });
+
+        document.getElementById('gerar-escala').addEventListener('click', function () {
+            const nomes = Array.from(document.getElementsByClassName('soldado-nome')).map(input => input.value);
+            const indisponibilidades = Array.from(document.getElementsByClassName('soldado-indisponivel')).map(input => input.value.split(',').map(Number));
+            const soldadosPorDia = parseInt(document.getElementById('soldados-por-dia').value);
+            const tipoEscala = document.getElementById('tipo-escala').value;
+            let dataInicial = new Date(document.getElementById('data-inicial').value);
+            let escala = [];
+            let diasUteis = tipoEscala === 'semanal' ? 5 : 22;
+            let distribuicao = nomes.reduce((acc, nome) => (acc[nome] = 0, acc), {});
+            for (let i = 0; i < diasUteis; i++) {
+                while (dataInicial.getDay() === 0 || dataInicial.getDay() === 6) {
+                    dataInicial.setDate(dataInicial.getDate() + 1);
+                }
+                let disponiveis = nomes.filter(nome => !indisponibilidades[nomes.indexOf(nome)].includes(dataInicial.getDate()));
+                disponiveis.sort((a, b) => distribuicao[a] - distribuicao[b]);
+                let selecionados = disponiveis.slice(0, soldadosPorDia);
+                selecionados.forEach(s => distribuicao[s]++);
+                escala.push({ data: dataInicial.toLocaleDateString('pt-BR'), diaSemana: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dataInicial.getDay()], soldados: selecionados });
+                dataInicial.setDate(dataInicial.getDate() + 1);
+            }
+            let tabela = '<table><tr><th>Data</th><th>Dia</th><th>Soldados</th></tr>';
+            escala.forEach(e => {
+                tabela += `<tr><td>${e.data}</td><td>${e.diaSemana}</td><td>${e.soldados.join(', ')}</td></tr>`;
+            });
+            tabela += '</table>';
+            document.getElementById('resultado').innerHTML = tabela;
+            document.getElementById('download-pdf').style.display = 'block';
+        });
+
+        // Função chamada quando o botão de "Baixar PDF" for clicado
+        function baixarPDF() {
+            const { jsPDF } = window.jspdf; // Acessando o jsPDF
+            const doc = new jsPDF(); // Criando o PDF
+            const tabelaHtml = document.getElementById('resultado').innerHTML;
+
+            doc.html(tabelaHtml, {
+                callback: function (doc) {
+                    doc.save('escala.pdf'); // Baixando o PDF
+                },
+                x: 10,
+                y: 10
+            });
+        }
+        function imprimirTabela() {
+            const tabelaHtml = document.getElementById('resultado').innerHTML;
+
+            // Cria uma janela de impressão com apenas a tabela
+            const janelaImpressao = window.open('', '', 'height=600,width=800');
+            janelaImpressao.document.write('<html><head><title>Imprimir Escala</title>');
+
+            // Adiciona estilos personalizados para a tabela na impressão
+            janelaImpressao.document.write(`
+        <style>
+            body {
+                font-family: 'Arial', sans-serif;
+                background-color: #f3e5f5;
+                margin: 20px;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+                font-size: 16px;
+                border: 1px solid #7e57c2;
+            }
+            th, td {
+                padding: 12px;
+                text-align: center;
+                background-color: #f3e5f5;
+                color: #5e35b1;
+                border: 1px solid #7e57c2;
+            }
+            th {
+                background-color: #7e57c2;
+                color: white;
+            }
+            tr:nth-child(even) {
+                background-color: #f1f1f1;
+            }
+            tr:hover {
+                background-color: #e1bee7;
+            }
+            @media print {
+                body {
+                    background-color: white;
+                    color: #333;
+                }
+                table {
+                    border: 1px solid #333;
+                }
+                th, td {
+                    border: 1px solid #333;
+                }
+            }
+        </style>
+    `);
+
+            // Escreve a tabela no documento da janela de impressão
+            janelaImpressao.document.write('</head><body>');
+            janelaImpressao.document.write(tabelaHtml); // Imprime apenas a tabela
+            janelaImpressao.document.write('</body></html>');
+
+            janelaImpressao.document.close(); // Fecha a janela de impressão
+            janelaImpressao.print(); // Executa a impressão
+        }
+
+
+    </script>
+</body>
+
+</html>
